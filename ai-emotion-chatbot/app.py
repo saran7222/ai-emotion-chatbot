@@ -36,7 +36,7 @@ def detect_emotion(text):
         return "😡 Angry"
 
 # ---- GEMINI MODEL ----
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-1.0-pro")
 
 def chat_with_gemini(chat_history):
     prompt = ""
@@ -79,3 +79,4 @@ if user_input:
         "content": final_reply
     })
     st.chat_message("assistant").markdown(final_reply)
+
