@@ -1,15 +1,12 @@
 import streamlit as st
-import openai
 from textblob import TextBlob
-import os
+from openai import OpenAI
 
-# --- CONFIG ---
 st.set_page_config(page_title="AI Emotion Chatbot", page_icon="🤖")
 
-# --- API KEY ---
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# OpenAI client
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# --- FUNCTIONS ---
 def detect_emotion(text):
     polarity = TextBlob(text).sentiment.polarity
     if polarity > 0.5:
@@ -24,8 +21,8 @@ def detect_emotion(text):
         return "😡 Angry"
 
 def chat_with_ai(user_text):
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "You are a friendly AI assistant."},
             {"role": "user", "content": user_text}
@@ -33,7 +30,6 @@ def chat_with_ai(user_text):
     )
     return response.choices[0].message.content
 
-# --- UI ---
 st.title("🤖 AI Emotion Chatbot")
 st.write("Chat with AI and detect human emotion")
 
