@@ -1,12 +1,19 @@
 import streamlit as st
 from textblob import TextBlob
 from openai import OpenAI
+import os
 
 st.set_page_config(page_title="AI Emotion Chatbot", page_icon="🤖")
 
-# OpenAI client
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# ---- API KEY (works local + cloud) ----
+api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=api_key)
 
+# ---- INIT CHAT HISTORY ----
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# ---- EMOTION DETECTION ----
 def detect_emotion(text):
     polarity = TextBlob(text).sentiment.polarity
     if polarity > 0.5:
@@ -20,27 +27,55 @@ def detect_emotion(text):
     else:
         return "😡 Angry"
 
-def chat_with_ai(user_text):
+# ---- AI RESPONSE ----
+def chat_with_ai(chat_history):
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a friendly AI assistant."},
-            {"role": "user", "content": user_text}
-        ]
+        messages=chat_history
     )
     return response.choices[0].message.content
 
+# ---- UI ----
 st.title("🤖 AI Emotion Chatbot")
 st.write("Chat with AI and detect human emotion")
 
-user_input = st.text_input("You:", placeholder="Type how you feel...")
-
-if st.button("Send"):
-    if user_input:
-        emotion = detect_emotion(user_input)
-        ai_reply = chat_with_ai(user_input)
-
-        st.markdown(f"**🧠 Detected Emotion:** {emotion}")
-        st.markdown(f"**🤖 AI Reply:** {ai_reply}")
+# ---- DISPLAY CHAT HISTORY ----
+for msg in st.session_state.messages:
+    if msg["role"] == "user":
+        st.chat_message("user").markdown(msg["content"])
     else:
-        st.warning("Please enter a message")
+        st.chat_message("assistant").markdown(msg["content"])
+
+# ---- USER INPUT ----
+user_input = st.chat_input("Type your message...")
+
+if user_input:
+    emotion = detect_emotion(user_input)
+
+    # Save user message
+    st.session_state.messages.append({
+        "role": "user",
+        "content": user_input
+    })
+
+    # Show user message instantly
+    st.chat_message("user").markdown(user_input)
+
+    # Prepare messages for OpenAI
+    openai_messages = [
+        {"role": "system", "content": "You are a friendly AI assistant."}
+    ] + st.session_state.messages
+
+    # Get AI reply
+    ai_reply = chat_with_ai(openai_messages)
+
+    # Save AI reply with emotion
+    ai_message = f"🧠 Emotion detected: **{emotion}**\n\n🤖 {ai_reply}"
+
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": ai_message
+    })
+
+    # Show AI reply
+    st.chat_message("assistant").markdown(ai_message)
