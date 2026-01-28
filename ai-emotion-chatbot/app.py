@@ -1,13 +1,21 @@
 import streamlit as st
 from textblob import TextBlob
-from openai import OpenAI
+import google.generativeai as genai
 import os
 
-st.set_page_config(page_title="AI Emotion Chatbot", page_icon="🤖")
+st.set_page_config(page_title="AI Emotion Chatbot (Gemini)", page_icon="🤖")
 
-# ---- API KEY (works local + cloud) ----
-api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=api_key)
+# ---- LOAD API KEY ----
+if "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_API_KEY"]
+else:
+    api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    st.error("❌ GEMINI_API_KEY is missing. Add it to Streamlit secrets.")
+    st.stop()
+
+genai.configure(api_key=api_key)
 
 # ---- INIT CHAT HISTORY ----
 if "messages" not in st.session_state:
@@ -27,24 +35,25 @@ def detect_emotion(text):
     else:
         return "😡 Angry"
 
-# ---- AI RESPONSE ----
-def chat_with_ai(chat_history):
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=chat_history
-    )
-    return response.choices[0].message.content
+# ---- GEMINI MODEL ----
+model = genai.GenerativeModel("gemini-1.5-flash")
+
+def chat_with_gemini(chat_history):
+    prompt = ""
+    for msg in chat_history:
+        role = "User" if msg["role"] == "user" else "Assistant"
+        prompt += f"{role}: {msg['content']}\n"
+
+    response = model.generate_content(prompt)
+    return response.text
 
 # ---- UI ----
-st.title("🤖 AI Emotion Chatbot")
-st.write("Chat with AI and detect human emotion")
+st.title("🤖 AI Emotion Chatbot (Gemini)")
+st.write("Chat with Gemini AI and detect human emotion")
 
 # ---- DISPLAY CHAT HISTORY ----
 for msg in st.session_state.messages:
-    if msg["role"] == "user":
-        st.chat_message("user").markdown(msg["content"])
-    else:
-        st.chat_message("assistant").markdown(msg["content"])
+    st.chat_message(msg["role"]).markdown(msg["content"])
 
 # ---- USER INPUT ----
 user_input = st.chat_input("Type your message...")
@@ -57,25 +66,16 @@ if user_input:
         "role": "user",
         "content": user_input
     })
-
-    # Show user message instantly
     st.chat_message("user").markdown(user_input)
 
-    # Prepare messages for OpenAI
-    openai_messages = [
-        {"role": "system", "content": "You are a friendly AI assistant."}
-    ] + st.session_state.messages
+    # Get Gemini reply
+    ai_reply = chat_with_gemini(st.session_state.messages)
 
-    # Get AI reply
-    ai_reply = chat_with_ai(openai_messages)
+    final_reply = f"🧠 Emotion detected: **{emotion}**\n\n🤖 {ai_reply}"
 
-    # Save AI reply with emotion
-    ai_message = f"🧠 Emotion detected: **{emotion}**\n\n🤖 {ai_reply}"
-
+    # Save assistant message
     st.session_state.messages.append({
         "role": "assistant",
-        "content": ai_message
+        "content": final_reply
     })
-
-    # Show AI reply
-    st.chat_message("assistant").markdown(ai_message)
+    st.chat_message("assistant").markdown(final_reply)
